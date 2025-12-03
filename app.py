@@ -25,21 +25,36 @@ HYDRATION_TIPS = [
     "Eat water-rich foods like watermelon and cucumber.",
 ]
 
-DATA_FILE = "water_log.txt"          # per-day intake history
-PROFILE_FILE = "water_profile.txt"   # XP + cosmetics
-
 XP_PER_ML_DIVISOR = 10
 XP_PER_LEVEL = 500
+
+# ---------- file helpers (multi-profile) ----------
+
+def get_profile_suffix() -> str:
+    name = st.session_state.profile_name
+    return name.replace(" ", "_").lower()
+
+def get_data_file() -> str:
+    return f"water_log_{get_profile_suffix()}.txt"
+
+def get_profile_file() -> str:
+    return f"water_profile_{get_profile_suffix()}.txt"
 
 
 # ===================== STATE INIT / FILE I/O =====================
 
 def init_state():
     s = st.session_state
+    if "profile_name" not in s:
+        s.profile_name = "Me"          # default profile
     if "age_group" not in s:
         s.age_group = "Adult (14-64)"
     if "goal_ml" not in s:
         s.goal_ml = AGE_GUIDELINES[s.age_group]
+    if "use_weight_goal" not in s:
+        s.use_weight_goal = False
+    if "weight_kg" not in s:
+        s.weight_kg = 60
     if "total_ml" not in s:
         s.total_ml = 0
     if "dark_mode" not in s:
@@ -48,29 +63,41 @@ def init_state():
         s.data_loaded = False
     if "_ask_reset" not in s:
         s._ask_reset = False
+
     if "xp" not in s:
         s.xp = 0
     if "level" not in s:
         s.level = 1
     if "last_xp_gain" not in s:
         s.last_xp_gain = 0
+
     # cosmetics from XP shop
-    if "has_bandana" not in s:
-        s.has_bandana = False
-    if "has_sunglasses" not in s:
-        s.has_sunglasses = False
-    if "has_crown" not in s:
-        s.has_crown = False
-    if "has_party_shell" not in s:
-        s.has_party_shell = False
+    for key in ("has_bandana", "has_sunglasses", "has_crown", "has_party_shell"):
+        if key not in s:
+            s[key] = False
+
+    # reminder minutes (0 = off)
+    if "reminder_minutes" not in s:
+        s.reminder_minutes = 0
+    if "last_drink_iso" not in s:
+        s.last_drink_iso = None
+
+    # quick-add custom presets
+    if "quick1" not in s:
+        s.quick1 = 100
+    if "quick2" not in s:
+        s.quick2 = 250
+    if "quick3" not in s:
+        s.quick3 = 500
 
 
 def load_today_from_file():
+    data_file = get_data_file()
     today = datetime.date.today().isoformat()
-    if not os.path.exists(DATA_FILE):
+    if not os.path.exists(data_file):
         return
 
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
+    with open(data_file, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -90,12 +117,12 @@ def load_today_from_file():
 
 
 def save_today_to_file():
-    """YYYY-MM-DD,total,goal per line."""
+    data_file = get_data_file()
     today = datetime.date.today().isoformat()
     history = {}
 
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(data_file):
+        with open(data_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -111,16 +138,17 @@ def save_today_to_file():
 
     history[today] = (st.session_state.total_ml, st.session_state.goal_ml)
 
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
+    with open(data_file, "w", encoding="utf-8") as f:
         for d, (t, g) in sorted(history.items()):
             f.write(f"{d},{t},{g}\n")
 
 
 def load_history():
+    data_file = get_data_file()
     history = {}
-    if not os.path.exists(DATA_FILE):
+    if not os.path.exists(data_file):
         return history
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
+    with open(data_file, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -137,11 +165,12 @@ def load_history():
 
 
 def load_profile():
-    if not os.path.exists(PROFILE_FILE):
+    profile_file = get_profile_file()
+    if not os.path.exists(profile_file):
         return
     s = st.session_state
     try:
-        with open(PROFILE_FILE, "r", encoding="utf-8") as f:
+        with open(profile_file, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if "=" not in line:
@@ -152,29 +181,46 @@ def load_profile():
                 elif k == "level":
                     s.level = int(v)
                 elif k in ("has_bandana", "has_sunglasses", "has_crown", "has_party_shell"):
-                    setattr(s, k, v == "True")
+                    s[k] = (v == "True")
+                elif k == "last_drink_iso":
+                    s.last_drink_iso = v if v else None
+                elif k == "quick1":
+                    s.quick1 = int(v)
+                elif k == "quick2":
+                    s.quick2 = int(v)
+                elif k == "quick3":
+                    s.quick3 = int(v)
     except Exception:
         pass
 
 
 def save_profile():
     s = st.session_state
-    with open(PROFILE_FILE, "w", encoding="utf-8") as f:
+    profile_file = get_profile_file()
+    with open(profile_file, "w", encoding="utf-8") as f:
         f.write(f"xp={s.xp}\n")
         f.write(f"level={s.level}\n")
         f.write(f"has_bandana={s.has_bandana}\n")
         f.write(f"has_sunglasses={s.has_sunglasses}\n")
         f.write(f"has_crown={s.has_crown}\n")
         f.write(f"has_party_shell={s.has_party_shell}\n")
+        f.write(f"last_drink_iso={s.last_drink_iso or ''}\n")
+        f.write(f"quick1={s.quick1}\n")
+        f.write(f"quick2={s.quick2}\n")
+        f.write(f"quick3={s.quick3}\n")
 
 
 # ===================== CORE LOGIC =====================
 
-def recalc_goal_from_age():
-    st.session_state.goal_ml = AGE_GUIDELINES.get(
-        st.session_state.age_group,
-        st.session_state.goal_ml,
-    )
+def recalc_goal_from_age_or_weight():
+    s = st.session_state
+    if s.use_weight_goal:
+        try:
+            s.goal_ml = int(s.weight_kg) * 35
+        except Exception:
+            s.goal_ml = AGE_GUIDELINES.get(s.age_group, 2000)
+    else:
+        s.goal_ml = AGE_GUIDELINES.get(s.age_group, s.goal_ml)
 
 
 def set_manual_goal(goal_str: str):
@@ -183,6 +229,8 @@ def set_manual_goal(goal_str: str):
         if val <= 0:
             raise ValueError
         st.session_state.goal_ml = val
+        # manual goal overrides weight flag
+        st.session_state.use_weight_goal = False
         save_today_to_file()
         st.success(f"Daily goal set to {val} ml")
     except ValueError:
@@ -209,14 +257,18 @@ def add_water(amount: int):
     if amount <= 0:
         return
     st.session_state.total_ml += amount
+    st.session_state.last_drink_iso = datetime.datetime.now().isoformat()
     add_xp_from_amount(amount)
     save_today_to_file()
+    save_profile()
 
 
 def reset_day():
     st.session_state.total_ml = 0
     st.session_state.last_xp_gain = 0
+    st.session_state.last_drink_iso = None
     save_today_to_file()
+    save_profile()
 
 
 def compute_progress():
@@ -295,25 +347,51 @@ def compute_history_stats(history: dict):
     return streak, best_date, best_intake, completion_rate, total_days, total_litres
 
 
+def compute_weekly_summary(history: dict):
+    if not history:
+        return 0, 0, 0, 0.0
+    today = datetime.date.today()
+    total_intake = 0
+    days_count = 0
+    days_goal_met = 0
+    for i in range(7):
+        d = (today - datetime.timedelta(days=i)).isoformat()
+        if d in history:
+            intake, goal = history[d]
+            days_count += 1
+            total_intake += intake
+            if intake >= goal:
+                days_goal_met += 1
+    if days_count == 0:
+        return 0, 0, 0, 0.0
+    avg_intake = total_intake / days_count
+    return days_count, total_intake, days_goal_met, avg_intake
+
+
+def compute_badges(history: dict, streak: int):
+    badges = {}
+
+    first_complete = any(intake >= goal for intake, goal in history.values())
+    double_goal = any(intake >= 2 * goal for intake, goal in history.values())
+    badges["First Day Complete"] = (first_complete, "Finish goal on any day.")
+    badges["3-Day Streak"] = (streak >= 3, "Hit your goal 3 days in a row.")
+    badges["7-Day Streak"] = (streak >= 7, "Hit your goal 7 days in a row.")
+    badges["Double Goal Day"] = (double_goal, "Drink at least 2× your goal in a day.")
+
+    return badges
+
+
 # ===================== TURTLE MASCOT (PIL IMAGE) =====================
 
 def draw_turtle_image(percent: float) -> Image.Image:
-    """
-    Draw a simple cartoon turtle whose pose depends on progress.
-    - Neutral: normal standing
-    - Happy: smile
-    - Wave: front leg up
-    - Celebrate: confetti around
-    Cosmetics from XP shop are layered on top.
-    """
     s = st.session_state
     state = mascot_state(percent)
-    p = max(0.0, min(1.5, percent / 100.0))  # clamp
+    p = max(0.0, min(1.5, percent / 100.0))
 
     img = Image.new("RGBA", (320, 220), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
 
-    # water level (background)
+    # water level
     water_top = int(170 - 100 * min(1.0, p))
     d.rectangle([0, water_top, 320, 220], fill=(200, 230, 255, 255))
 
@@ -322,7 +400,7 @@ def draw_turtle_image(percent: float) -> Image.Image:
     shell_radius = 55
     shell_color = (80, 160, 80, 255)
     if s.has_party_shell:
-        shell_color = (120, 180, 255, 255)  # party shell
+        shell_color = (120, 180, 255, 255)
 
     d.ellipse(
         [
@@ -333,8 +411,7 @@ def draw_turtle_image(percent: float) -> Image.Image:
         outline=(40, 100, 40, 255),
         width=3,
     )
-
-    # shell pattern (simple grid)
+    # shell grid
     d.line([(shell_center[0] - shell_radius, shell_center[1]),
             (shell_center[0] + shell_radius, shell_center[1])],
            fill=(40, 100, 40, 255), width=2)
@@ -385,7 +462,7 @@ def draw_turtle_image(percent: float) -> Image.Image:
         d.line([(head_center[0] - 8, mouth_top),
                 (head_center[0] + 8, mouth_top)], fill=(0, 0, 0, 255), width=2)
 
-    # legs: back legs fixed
+    # legs
     leg_y = shell_center[1] + shell_radius - 5
     d.rectangle([(shell_center[0] - 35, leg_y),
                  (shell_center[0] - 15, leg_y + 18)],
@@ -394,28 +471,25 @@ def draw_turtle_image(percent: float) -> Image.Image:
                  (shell_center[0] + 35, leg_y + 18)],
                 fill=(140, 200, 120, 255))
 
-    # front/waving leg
     front_leg_base = (shell_center[0] + 5, shell_center[1])
     if state == "Wave":
-        # raised leg
         d.rectangle([(front_leg_base[0], front_leg_base[1] - 30),
                      (front_leg_base[0] + 16, front_leg_base[1] - 5)],
                     fill=(140, 200, 120, 255))
     else:
-        # normal leg
         d.rectangle([(front_leg_base[0], front_leg_base[1] + 3),
                      (front_leg_base[0] + 16, front_leg_base[1] + 28)],
                     fill=(140, 200, 120, 255))
 
-    # bandana accessory
-    if st.session_state.has_bandana:
+    # bandana
+    if s.has_bandana:
         d.polygon([(shell_center[0] - 30, shell_center[1] - shell_radius - 5),
                    (shell_center[0] + 10, shell_center[1] - shell_radius - 5),
                    (shell_center[0] - 10, shell_center[1] - shell_radius + 15)],
                   fill=(220, 40, 90, 255))
 
-    # crown accessory
-    if st.session_state.has_crown:
+    # crown
+    if s.has_crown:
         cx, cy = head_center[0], head_center[1] - head_radius - 4
         d.polygon([(cx - 18, cy + 14),
                    (cx - 8, cy - 4),
@@ -429,14 +503,15 @@ def draw_turtle_image(percent: float) -> Image.Image:
     if state == "Celebrate":
         for x in range(20, 300, 40):
             for y in range(20, 80, 20):
-                d.rectangle([(x, y), (x + 4, y + 8)], fill=(random.randint(50, 255),
-                                                            random.randint(50, 255),
-                                                            random.randint(50, 255), 255))
+                d.rectangle([(x, y), (x + 4, y + 8)],
+                            fill=(random.randint(50, 255),
+                                  random.randint(50, 255),
+                                  random.randint(50, 255), 255))
 
     return img
 
 
-# ===================== DARK MODE (CSS) =====================
+# ===================== DARK MODE + BUTTON COLORS =====================
 
 def apply_dark_mode():
     if st.session_state.dark_mode:
@@ -450,6 +525,20 @@ def apply_dark_mode():
             .block-container {
                 padding-top: 2rem;
                 padding-bottom: 2rem;
+            }
+
+            /* BUTTONS - DARK MODE */
+            .stButton > button {
+                background-color: #2563eb;
+                color: #ffffff;
+                border-radius: 9999px;
+                border: 0px;
+                padding: 0.35rem 0.9rem;
+                font-weight: 500;
+            }
+            .stButton > button:hover {
+                background-color: #1d4ed8;
+                color: #ffffff;
             }
             </style>
             """,
@@ -467,6 +556,20 @@ def apply_dark_mode():
                 padding-top: 2rem;
                 padding-bottom: 2rem;
             }
+
+            /* BUTTONS - LIGHT MODE */
+            .stButton > button {
+                background-color: #2563eb;
+                color: #ffffff;
+                border-radius: 9999px;
+                border: 0px;
+                padding: 0.35rem 0.9rem;
+                font-weight: 500;
+            }
+            .stButton > button:hover {
+                background-color: #1d4ed8;
+                color: #ffffff;
+            }
             </style>
             """,
             unsafe_allow_html=True,
@@ -479,6 +582,17 @@ def main():
     st.set_page_config(page_title="WaterBuddy", page_icon="💧", layout="wide")
     init_state()
 
+    # profile selector FIRST, so files use correct suffix
+    with st.sidebar:
+        st.markdown("## 👤 Profile")
+        profiles = ["Me", "Family 2", "Family 3"]
+        idx = profiles.index(st.session_state.profile_name) if st.session_state.profile_name in profiles else 0
+        new_profile = st.selectbox("Select profile", profiles, index=idx)
+        if new_profile != st.session_state.profile_name:
+            st.session_state.profile_name = new_profile
+            st.session_state.data_loaded = False
+            st.rerun()
+
     if not st.session_state.data_loaded:
         load_today_from_file()
         load_profile()
@@ -486,31 +600,41 @@ def main():
 
     apply_dark_mode()
 
-    # ---------- SIDEBAR ----------
+    # ---------- SIDEBAR (rest of settings) ----------
     with st.sidebar:
         st.markdown("## ⚙️ Settings")
 
-        st.markdown("#### Age Group")
+        st.markdown("#### Age / Goal")
         new_age = st.selectbox(
-            "Select Age Group",
+            "Age Group",
             list(AGE_GUIDELINES.keys()),
             index=list(AGE_GUIDELINES.keys()).index(st.session_state.age_group),
-            label_visibility="collapsed",
         )
         if new_age != st.session_state.age_group:
             st.session_state.age_group = new_age
-            recalc_goal_from_age()
+            recalc_goal_from_age_or_weight()
             save_today_to_file()
             st.rerun()
 
-        st.markdown("#### Daily Goal (ml)")
+        st.checkbox("Use weight-based goal (ml = kg × 35)",
+                    key="use_weight_goal", on_change=recalc_goal_from_age_or_weight)
+        st.number_input("Weight (kg)", min_value=10, max_value=200,
+                        key="weight_kg", on_change=recalc_goal_from_age_or_weight)
+
         goal_input = st.text_input(
             "Manual goal (ml)",
             value=str(st.session_state.goal_ml),
-            label_visibility="collapsed",
         )
         if st.button("Set Goal"):
             set_manual_goal(goal_input)
+
+        st.markdown("---")
+
+        st.markdown("#### Quick-add presets (ml)")
+        st.number_input("Preset 1", min_value=10, max_value=5000, key="quick1")
+        st.number_input("Preset 2", min_value=10, max_value=5000, key="quick2")
+        st.number_input("Preset 3", min_value=10, max_value=5000, key="quick3")
+        save_profile()  # keep them persisted
 
         st.markdown("---")
 
@@ -536,6 +660,15 @@ def main():
             st.info(random.choice(HYDRATION_TIPS))
 
         st.markdown("---")
+        st.markdown("#### Reminder")
+        st.session_state.reminder_minutes = st.selectbox(
+            "Show warning if no water for:",
+            [0, 30, 60, 90],
+            index=[0, 30, 60, 90].index(st.session_state.reminder_minutes),
+            format_func=lambda m: "Off" if m == 0 else f"{m} minutes",
+        )
+
+        st.markdown("---")
         st.session_state.dark_mode = st.checkbox(
             "🌙 Dark Mode", value=st.session_state.dark_mode
         )
@@ -546,18 +679,27 @@ def main():
         """
         <h1 style='margin-bottom:0'>💧 WaterBuddy</h1>
         <p style='margin-top:4px;font-size:0.95rem;opacity:0.75'>
-        Daily hydration companion with goals, XP, shop and progress insights.
+        Daily hydration companion with goals, reminders, XP, shop and progress insights.
         </p>
         """,
         unsafe_allow_html=True,
     )
 
-    # progress
+    # reminder banner
+    if st.session_state.reminder_minutes > 0 and st.session_state.last_drink_iso:
+        try:
+            last_dt = datetime.datetime.fromisoformat(st.session_state.last_drink_iso)
+            diff_min = (datetime.datetime.now() - last_dt).total_seconds() / 60
+            if diff_min >= st.session_state.reminder_minutes and st.session_state.total_ml < st.session_state.goal_ml:
+                st.warning(f"You haven't logged water for about {int(diff_min)} minutes.")
+        except Exception:
+            pass
+
+    # progress + XP
     goal, total, remaining, percent = compute_progress()
     xp = st.session_state.xp
     level = st.session_state.level
     xp_prev = (level - 1) * XP_PER_LEVEL
-    xp_next = level * XP_PER_LEVEL
     xp_into_level = xp - xp_prev
     xp_progress = xp_into_level / XP_PER_LEVEL if XP_PER_LEVEL else 0.0
 
@@ -576,7 +718,7 @@ def main():
         f"XP: {xp} | Level {level} | {xp_into_level} / {XP_PER_LEVEL} XP to next level"
     )
 
-    # ---------- MASCOT + STATUS ----------
+    # mascot + status
     col_mascot, col_msg = st.columns([1.2, 2])
 
     with col_mascot:
@@ -597,19 +739,23 @@ def main():
 
     with c_fast:
         st.markdown("**Quick add**")
+        labels = [
+            f"+{st.session_state.quick1} ml",
+            f"+{st.session_state.quick2} ml",
+            f"+{st.session_state.quick3} ml",
+            "+1 L",
+        ]
+        amounts = [
+            st.session_state.quick1,
+            st.session_state.quick2,
+            st.session_state.quick3,
+            1000,
+        ]
         b1, b2, b3, b4 = st.columns(4)
-        if b1.button("+100 ml"):
-            add_water(100)
-            st.rerun()
-        if b2.button("+250 ml"):
-            add_water(250)
-            st.rerun()
-        if b3.button("+500 ml"):
-            add_water(500)
-            st.rerun()
-        if b4.button("+1 L"):
-            add_water(1000)
-            st.rerun()
+        for btn, label, amt in zip((b1, b2, b3, b4), labels, amounts):
+            if btn.button(label):
+                add_water(int(amt))
+                st.rerun()
 
     with c_custom:
         st.markdown("**Custom amount**")
@@ -629,7 +775,7 @@ def main():
     st.markdown("### 🛒 XP Shop – Style Your Turtle")
 
     def shop_item(col, key, label, cost, description):
-        owned = getattr(st.session_state, key)
+        owned = st.session_state[key]
         xp = st.session_state.xp
         with col:
             st.markdown(f"**{label}**")
@@ -640,7 +786,7 @@ def main():
                 if st.button(f"Buy ({cost} XP)", key=f"buy_{key}"):
                     if xp >= cost:
                         st.session_state.xp -= cost
-                        setattr(st.session_state, key, True)
+                        st.session_state[key] = True
                         save_profile()
                         st.success(f"Bought {label}!")
                         st.rerun()
@@ -656,15 +802,17 @@ def main():
         "has_party_shell",
         "Party Shell",
         600,
-        "Colorful shell pattern for celebrations.",
+        "Colourful shell pattern for celebrations.",
     )
 
     st.markdown("---")
 
-    # ---------- HISTORY + ANALYTICS ----------
+    # ---------- HISTORY / ANALYTICS / BADGES ----------
     history = load_history()
     streak, best_date, best_intake, completion_rate, total_days, total_litres = \
         compute_history_stats(history)
+    days7, total7, met7, avg7 = compute_weekly_summary(history)
+    badges = compute_badges(history, streak)
 
     st.markdown("### 📊 History & Insights")
 
@@ -680,6 +828,27 @@ def main():
         )
     else:
         st.caption("Start logging to unlock streaks and stats.")
+
+    # Weekly summary card
+    st.markdown("#### Weekly Summary (last 7 days)")
+    if days7 == 0:
+        st.info("No data in the last 7 days.")
+    else:
+        st.info(
+            f"Logged on **{days7}** day(s). Total **{total7} ml**, "
+            f"average **{avg7:.0f} ml/day**, goal met on **{met7}** day(s)."
+        )
+
+    # Badges
+    st.markdown("#### 🏅 Badges")
+    bcols = st.columns(len(badges))
+    for col, (name, (unlocked, desc)) in zip(bcols, badges.items()):
+        with col:
+            if unlocked:
+                st.success(name)
+            else:
+                st.button(name, disabled=True)
+            st.caption(desc)
 
     with st.expander("📅 View Hydration History (Chart & Table)", expanded=False):
         if not history:
@@ -700,7 +869,7 @@ def main():
             st.dataframe(df.sort_values("date", ascending=False), use_container_width=True)
 
             st.caption(
-                f"History stored in `{DATA_FILE}` and XP profile in `{PROFILE_FILE}` "
+                f"History stored in `{get_data_file()}` and profile in `{get_profile_file()}` "
                 f"(simple local text files, no cloud database)."
             )
 
