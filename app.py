@@ -3,14 +3,15 @@ import datetime
 import os
 import random
 import pandas as pd
+from PIL import Image, ImageDraw
 
 # ===================== CONFIG / CONSTANTS =====================
 
 AGE_GUIDELINES = {
     "Child (4-8)": 1200,
     "Teen (9-13)": 1700,
-    "Adult (14-64)": 2200,   # middle of 2000–2500
-    "Senior (65+)": 1800     # middle of 1700–2000
+    "Adult (14-64)": 2200,
+    "Senior (65+)": 1800,
 }
 
 HYDRATION_TIPS = [
@@ -21,41 +22,50 @@ HYDRATION_TIPS = [
     "Thirst is a late sign — drink before you feel thirsty.",
     "Water helps with focus, mood, and energy.",
     "Add lemon or cucumber slices for taste.",
-    "Eat water-rich foods like watermelon and cucumber."
+    "Eat water-rich foods like watermelon and cucumber.",
 ]
 
 DATA_FILE = "water_log.txt"          # per-day intake history
-PROFILE_FILE = "water_profile.txt"   # XP + level profile
+PROFILE_FILE = "water_profile.txt"   # XP + cosmetics
 
-XP_PER_ML_DIVISOR = 10   # gained_xp = amount // 10
-XP_PER_LEVEL = 500       # each level per 500 XP
+XP_PER_ML_DIVISOR = 10
+XP_PER_LEVEL = 500
 
 
 # ===================== STATE INIT / FILE I/O =====================
 
 def init_state():
-    if "age_group" not in st.session_state:
-        st.session_state.age_group = "Adult (14-64)"
-    if "goal_ml" not in st.session_state:
-        st.session_state.goal_ml = AGE_GUIDELINES[st.session_state.age_group]
-    if "total_ml" not in st.session_state:
-        st.session_state.total_ml = 0
-    if "dark_mode" not in st.session_state:
-        st.session_state.dark_mode = False
-    if "data_loaded" not in st.session_state:
-        st.session_state.data_loaded = False
-    if "_ask_reset" not in st.session_state:
-        st.session_state._ask_reset = False
-    if "xp" not in st.session_state:
-        st.session_state.xp = 0
-    if "level" not in st.session_state:
-        st.session_state.level = 1
-    if "last_xp_gain" not in st.session_state:
-        st.session_state.last_xp_gain = 0
+    s = st.session_state
+    if "age_group" not in s:
+        s.age_group = "Adult (14-64)"
+    if "goal_ml" not in s:
+        s.goal_ml = AGE_GUIDELINES[s.age_group]
+    if "total_ml" not in s:
+        s.total_ml = 0
+    if "dark_mode" not in s:
+        s.dark_mode = False
+    if "data_loaded" not in s:
+        s.data_loaded = False
+    if "_ask_reset" not in s:
+        s._ask_reset = False
+    if "xp" not in s:
+        s.xp = 0
+    if "level" not in s:
+        s.level = 1
+    if "last_xp_gain" not in s:
+        s.last_xp_gain = 0
+    # cosmetics from XP shop
+    if "has_bandana" not in s:
+        s.has_bandana = False
+    if "has_sunglasses" not in s:
+        s.has_sunglasses = False
+    if "has_crown" not in s:
+        s.has_crown = False
+    if "has_party_shell" not in s:
+        s.has_party_shell = False
 
 
 def load_today_from_file():
-    """Restore today's total + goal from DATA_FILE, if present."""
     today = datetime.date.today().isoformat()
     if not os.path.exists(DATA_FILE):
         return
@@ -71,24 +81,19 @@ def load_today_from_file():
             date_str, total_str, goal_str = parts
             if date_str == today:
                 try:
-                    total = int(total_str)
-                    goal = int(goal_str)
-                    st.session_state.total_ml = total
-                    if goal > 0:
-                        st.session_state.goal_ml = goal
+                    st.session_state.total_ml = int(total_str)
+                    g = int(goal_str)
+                    if g > 0:
+                        st.session_state.goal_ml = g
                 except ValueError:
                     pass
 
 
 def save_today_to_file():
-    """
-    Store daily total + goal to DATA_FILE.
-    Format per line: YYYY-MM-DD,total,goal
-    """
+    """YYYY-MM-DD,total,goal per line."""
     today = datetime.date.today().isoformat()
     history = {}
 
-    # read existing
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             for line in f:
@@ -98,23 +103,20 @@ def save_today_to_file():
                 parts = line.split(",")
                 if len(parts) != 3:
                     continue
-                d, total_str, goal_str = parts
+                d, t, g = parts
                 try:
-                    history[d] = (int(total_str), int(goal_str))
+                    history[d] = (int(t), int(g))
                 except ValueError:
                     continue
 
-    # update today's
     history[today] = (st.session_state.total_ml, st.session_state.goal_ml)
 
-    # write back
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         for d, (t, g) in sorted(history.items()):
             f.write(f"{d},{t},{g}\n")
 
 
 def load_history():
-    """Return dict: date_str -> (total, goal)."""
     history = {}
     if not os.path.exists(DATA_FILE):
         return history
@@ -126,18 +128,18 @@ def load_history():
             parts = line.split(",")
             if len(parts) != 3:
                 continue
-            d, total_str, goal_str = parts
+            d, t, g = parts
             try:
-                history[d] = (int(total_str), int(goal_str))
+                history[d] = (int(t), int(g))
             except ValueError:
                 continue
     return history
 
 
 def load_profile():
-    """Load XP + level from PROFILE_FILE."""
     if not os.path.exists(PROFILE_FILE):
         return
+    s = st.session_state
     try:
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
             for line in f:
@@ -146,35 +148,38 @@ def load_profile():
                     continue
                 k, v = line.split("=", 1)
                 if k == "xp":
-                    st.session_state.xp = int(v)
+                    s.xp = int(v)
                 elif k == "level":
-                    st.session_state.level = int(v)
+                    s.level = int(v)
+                elif k in ("has_bandana", "has_sunglasses", "has_crown", "has_party_shell"):
+                    setattr(s, k, v == "True")
     except Exception:
-        # if profile file is corrupted, ignore and keep defaults
         pass
 
 
 def save_profile():
-    """Persist XP + level."""
+    s = st.session_state
     with open(PROFILE_FILE, "w", encoding="utf-8") as f:
-        f.write(f"xp={st.session_state.xp}\n")
-        f.write(f"level={st.session_state.level}\n")
+        f.write(f"xp={s.xp}\n")
+        f.write(f"level={s.level}\n")
+        f.write(f"has_bandana={s.has_bandana}\n")
+        f.write(f"has_sunglasses={s.has_sunglasses}\n")
+        f.write(f"has_crown={s.has_crown}\n")
+        f.write(f"has_party_shell={s.has_party_shell}\n")
 
 
 # ===================== CORE LOGIC =====================
 
 def recalc_goal_from_age():
-    """Set goal from selected age group."""
     st.session_state.goal_ml = AGE_GUIDELINES.get(
         st.session_state.age_group,
-        st.session_state.goal_ml
+        st.session_state.goal_ml,
     )
 
 
-def set_manual_goal(new_goal_str: str):
-    """Set manual goal from text input."""
+def set_manual_goal(goal_str: str):
     try:
-        val = int(new_goal_str)
+        val = int(goal_str)
         if val <= 0:
             raise ValueError
         st.session_state.goal_ml = val
@@ -185,22 +190,22 @@ def set_manual_goal(new_goal_str: str):
 
 
 def add_xp_from_amount(amount: int):
-    """Gamification: convert water amount to XP and update level."""
     gained = max(0, amount // XP_PER_ML_DIVISOR)
     st.session_state.last_xp_gain = gained
     if gained == 0:
         return
-    st.session_state.xp += gained
-    old_level = st.session_state.level
-    st.session_state.level = 1 + st.session_state.xp // XP_PER_LEVEL
+
+    s = st.session_state
+    s.xp += gained
+    old_level = s.level
+    s.level = 1 + s.xp // XP_PER_LEVEL
     save_profile()
-    if st.session_state.level > old_level:
+    if s.level > old_level:
         st.balloons()
-        st.success(f"Level up! You reached Level {st.session_state.level} 🎉")
+        st.success(f"Level up! You reached Level {s.level} 🎉")
 
 
 def add_water(amount: int):
-    """Add water, update file and XP."""
     if amount <= 0:
         return
     st.session_state.total_ml += amount
@@ -209,7 +214,6 @@ def add_water(amount: int):
 
 
 def reset_day():
-    """Reset today’s progress but keep history + XP."""
     st.session_state.total_ml = 0
     st.session_state.last_xp_gain = 0
     save_today_to_file()
@@ -239,22 +243,17 @@ def motivational_message(percent: float) -> str:
 
 
 def mascot_state(percent: float):
-    """Neutral / Smile / Wave / Celebrate (emoji)."""
     if percent < 50:
-        return "😐", "Mascot: Neutral (keep going!)"
+        return "Neutral"
     elif percent < 75:
-        return "😊", "Mascot: Smiling (good progress!)"
+        return "Happy"
     elif percent < 100:
-        return "👋😄", "Mascot: Waving (almost there!)"
+        return "Wave"
     else:
-        return "🎉😄", "Mascot: Celebrating (goal reached!)"
+        return "Celebrate"
 
 
 def compute_history_stats(history: dict):
-    """
-    history: {date_str: (intake, goal)}
-    Returns: streak_days, best_date, best_intake, completion_rate, total_days, total_litres
-    """
     if not history:
         return 0, None, 0, 0.0, 0, 0.0
 
@@ -277,7 +276,7 @@ def compute_history_stats(history: dict):
 
     completion_rate = completed / total_days * 100.0
 
-    # streak = consecutive days with goal met starting from latest date backwards
+    # streak from latest date
     streak = 0
     last_date = datetime.date.fromisoformat(dates[-1])
     current = last_date
@@ -294,6 +293,147 @@ def compute_history_stats(history: dict):
         current = current - datetime.timedelta(days=1)
 
     return streak, best_date, best_intake, completion_rate, total_days, total_litres
+
+
+# ===================== TURTLE MASCOT (PIL IMAGE) =====================
+
+def draw_turtle_image(percent: float) -> Image.Image:
+    """
+    Draw a simple cartoon turtle whose pose depends on progress.
+    - Neutral: normal standing
+    - Happy: smile
+    - Wave: front leg up
+    - Celebrate: confetti around
+    Cosmetics from XP shop are layered on top.
+    """
+    s = st.session_state
+    state = mascot_state(percent)
+    p = max(0.0, min(1.5, percent / 100.0))  # clamp
+
+    img = Image.new("RGBA", (320, 220), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    # water level (background)
+    water_top = int(170 - 100 * min(1.0, p))
+    d.rectangle([0, water_top, 320, 220], fill=(200, 230, 255, 255))
+
+    # shell
+    shell_center = (150, 130)
+    shell_radius = 55
+    shell_color = (80, 160, 80, 255)
+    if s.has_party_shell:
+        shell_color = (120, 180, 255, 255)  # party shell
+
+    d.ellipse(
+        [
+            (shell_center[0] - shell_radius, shell_center[1] - shell_radius),
+            (shell_center[0] + shell_radius, shell_center[1] + shell_radius),
+        ],
+        fill=shell_color,
+        outline=(40, 100, 40, 255),
+        width=3,
+    )
+
+    # shell pattern (simple grid)
+    d.line([(shell_center[0] - shell_radius, shell_center[1]),
+            (shell_center[0] + shell_radius, shell_center[1])],
+           fill=(40, 100, 40, 255), width=2)
+    d.line([(shell_center[0], shell_center[1] - shell_radius),
+            (shell_center[0], shell_center[1] + shell_radius)],
+           fill=(40, 100, 40, 255), width=2)
+
+    # head
+    head_center = (shell_center[0] + shell_radius + 25, shell_center[1] - 20)
+    head_radius = 22
+    d.ellipse(
+        [
+            (head_center[0] - head_radius, head_center[1] - head_radius),
+            (head_center[0] + head_radius, head_center[1] + head_radius),
+        ],
+        fill=(140, 200, 120, 255),
+        outline=(40, 100, 40, 255),
+        width=2,
+    )
+
+    # eyes
+    eye_y = head_center[1] - 5
+    d.ellipse([(head_center[0] - 10, eye_y - 4),
+               (head_center[0] - 4, eye_y + 2)],
+              fill=(0, 0, 0, 255))
+    d.ellipse([(head_center[0] + 4, eye_y - 4),
+               (head_center[0] + 10, eye_y + 2)],
+              fill=(0, 0, 0, 255))
+
+    # sunglasses
+    if s.has_sunglasses:
+        d.rectangle([(head_center[0] - 12, eye_y - 6),
+                     (head_center[0] - 2, eye_y + 4)],
+                    fill=(0, 0, 0, 255))
+        d.rectangle([(head_center[0] + 2, eye_y - 6),
+                     (head_center[0] + 12, eye_y + 4)],
+                    fill=(0, 0, 0, 255))
+        d.line([(head_center[0] - 2, eye_y),
+                (head_center[0] + 2, eye_y)], fill=(0, 0, 0, 255), width=2)
+
+    # mouth
+    mouth_top = head_center[1] + 8
+    if state in ("Happy", "Wave", "Celebrate"):
+        d.arc([(head_center[0] - 10, mouth_top - 4),
+               (head_center[0] + 10, mouth_top + 8)],
+              start=0, end=180, fill=(0, 0, 0, 255), width=2)
+    else:
+        d.line([(head_center[0] - 8, mouth_top),
+                (head_center[0] + 8, mouth_top)], fill=(0, 0, 0, 255), width=2)
+
+    # legs: back legs fixed
+    leg_y = shell_center[1] + shell_radius - 5
+    d.rectangle([(shell_center[0] - 35, leg_y),
+                 (shell_center[0] - 15, leg_y + 18)],
+                fill=(140, 200, 120, 255))
+    d.rectangle([(shell_center[0] + 15, leg_y),
+                 (shell_center[0] + 35, leg_y + 18)],
+                fill=(140, 200, 120, 255))
+
+    # front/waving leg
+    front_leg_base = (shell_center[0] + 5, shell_center[1])
+    if state == "Wave":
+        # raised leg
+        d.rectangle([(front_leg_base[0], front_leg_base[1] - 30),
+                     (front_leg_base[0] + 16, front_leg_base[1] - 5)],
+                    fill=(140, 200, 120, 255))
+    else:
+        # normal leg
+        d.rectangle([(front_leg_base[0], front_leg_base[1] + 3),
+                     (front_leg_base[0] + 16, front_leg_base[1] + 28)],
+                    fill=(140, 200, 120, 255))
+
+    # bandana accessory
+    if st.session_state.has_bandana:
+        d.polygon([(shell_center[0] - 30, shell_center[1] - shell_radius - 5),
+                   (shell_center[0] + 10, shell_center[1] - shell_radius - 5),
+                   (shell_center[0] - 10, shell_center[1] - shell_radius + 15)],
+                  fill=(220, 40, 90, 255))
+
+    # crown accessory
+    if st.session_state.has_crown:
+        cx, cy = head_center[0], head_center[1] - head_radius - 4
+        d.polygon([(cx - 18, cy + 14),
+                   (cx - 8, cy - 4),
+                   (cx, cy + 14),
+                   (cx + 8, cy - 4),
+                   (cx + 18, cy + 14)],
+                  fill=(250, 210, 80, 255),
+                  outline=(160, 130, 30, 255))
+
+    # confetti for celebrate
+    if state == "Celebrate":
+        for x in range(20, 300, 40):
+            for y in range(20, 80, 20):
+                d.rectangle([(x, y), (x + 4, y + 8)], fill=(random.randint(50, 255),
+                                                            random.randint(50, 255),
+                                                            random.randint(50, 255), 255))
+
+    return img
 
 
 # ===================== DARK MODE (CSS) =====================
@@ -313,7 +453,7 @@ def apply_dark_mode():
             }
             </style>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
     else:
         st.markdown(
@@ -329,7 +469,7 @@ def apply_dark_mode():
             }
             </style>
             """,
-            unsafe_allow_html=True
+            unsafe_allow_html=True,
         )
 
 
@@ -355,7 +495,7 @@ def main():
             "Select Age Group",
             list(AGE_GUIDELINES.keys()),
             index=list(AGE_GUIDELINES.keys()).index(st.session_state.age_group),
-            label_visibility="collapsed"
+            label_visibility="collapsed",
         )
         if new_age != st.session_state.age_group:
             st.session_state.age_group = new_age
@@ -367,7 +507,7 @@ def main():
         goal_input = st.text_input(
             "Manual goal (ml)",
             value=str(st.session_state.goal_ml),
-            label_visibility="collapsed"
+            label_visibility="collapsed",
         )
         if st.button("Set Goal"):
             set_manual_goal(goal_input)
@@ -401,30 +541,28 @@ def main():
         )
         apply_dark_mode()
 
-    # ---------- MAIN LAYOUT ----------
+    # ---------- HEADER ----------
     st.markdown(
         """
         <h1 style='margin-bottom:0'>💧 WaterBuddy</h1>
         <p style='margin-top:4px;font-size:0.95rem;opacity:0.75'>
-        Daily hydration companion with goals, history, XP and progress insights.
+        Daily hydration companion with goals, XP, shop and progress insights.
         </p>
         """,
         unsafe_allow_html=True,
     )
 
-    # Progress + XP calculations
+    # progress
     goal, total, remaining, percent = compute_progress()
     xp = st.session_state.xp
     level = st.session_state.level
-    xp_prev_level = (level - 1) * XP_PER_LEVEL
-    xp_next_level = level * XP_PER_LEVEL
-    xp_into_level = xp - xp_prev_level
-    xp_level_span = XP_PER_LEVEL
-    xp_progress = xp_into_level / xp_level_span if xp_level_span else 0.0
+    xp_prev = (level - 1) * XP_PER_LEVEL
+    xp_next = level * XP_PER_LEVEL
+    xp_into_level = xp - xp_prev
+    xp_progress = xp_into_level / XP_PER_LEVEL if XP_PER_LEVEL else 0.0
 
-    # Top stats row (now includes level)
     top0, top1, top2, top3, top4 = st.columns(5)
-    top0.metric("Level", level, help="Each level = 500 XP")
+    top0.metric("Level", level)
     top1.metric("Daily Goal", f"{goal} ml")
     top2.metric("Drank Today", f"{total} ml")
     top3.metric("Remaining", f"{remaining} ml")
@@ -432,19 +570,19 @@ def main():
 
     st.progress(min(1.0, percent / 100.0))
 
-    # XP bar
     st.markdown("##### XP Progress")
     st.progress(min(1.0, xp_progress))
     st.caption(
-        f"XP: {xp}  |  Level {level}  |  {xp_into_level} / {XP_PER_LEVEL} XP to next level"
+        f"XP: {xp} | Level {level} | {xp_into_level} / {XP_PER_LEVEL} XP to next level"
     )
 
-    # Mascot + message row
-    col_mascot, col_msg = st.columns([1, 2])
+    # ---------- MASCOT + STATUS ----------
+    col_mascot, col_msg = st.columns([1.2, 2])
+
     with col_mascot:
-        emoji, mascot_text = mascot_state(percent)
-        st.markdown(f"### {emoji}")
-        st.caption(mascot_text)
+        img = draw_turtle_image(percent)
+        st.image(img, caption="Your Water Turtle", use_column_width=False)
+        st.caption(f"Pose: {mascot_state(percent)}")
 
     with col_msg:
         st.markdown("##### Status")
@@ -452,7 +590,7 @@ def main():
 
     st.markdown("---")
 
-    # ---------- LOGGING CONTROLS ----------
+    # ---------- LOG WATER ----------
     st.markdown("### Log Water")
 
     c_fast, c_custom = st.columns([2, 1])
@@ -482,29 +620,63 @@ def main():
             add_water(int(custom_amt))
             st.rerun()
 
-    # Show last XP gain under the logging section
     if st.session_state.last_xp_gain > 0:
         st.caption(f"⭐ You earned +{st.session_state.last_xp_gain} XP for that drink!")
 
     st.markdown("---")
 
-    # ---------- HISTORY & ANALYTICS ----------
-    history = load_history()
-    streak_days, best_date, best_intake, completion_rate, total_days, total_litres = (
-        compute_history_stats(history)
+    # ---------- XP SHOP ----------
+    st.markdown("### 🛒 XP Shop – Style Your Turtle")
+
+    def shop_item(col, key, label, cost, description):
+        owned = getattr(st.session_state, key)
+        xp = st.session_state.xp
+        with col:
+            st.markdown(f"**{label}**")
+            st.caption(description)
+            if owned:
+                st.button("Owned", key=f"{key}_owned", disabled=True)
+            else:
+                if st.button(f"Buy ({cost} XP)", key=f"buy_{key}"):
+                    if xp >= cost:
+                        st.session_state.xp -= cost
+                        setattr(st.session_state, key, True)
+                        save_profile()
+                        st.success(f"Bought {label}!")
+                        st.rerun()
+                    else:
+                        st.error("Not enough XP")
+
+    s1, s2, s3, s4 = st.columns(4)
+    shop_item(s1, "has_bandana", "Bandana", 150, "Give your turtle a red bandana.")
+    shop_item(s2, "has_sunglasses", "Sunglasses", 200, "Cool shades for sunny days.")
+    shop_item(s3, "has_crown", "Crown", 400, "Royal turtle energy.")
+    shop_item(
+        s4,
+        "has_party_shell",
+        "Party Shell",
+        600,
+        "Colorful shell pattern for celebrations.",
     )
+
+    st.markdown("---")
+
+    # ---------- HISTORY + ANALYTICS ----------
+    history = load_history()
+    streak, best_date, best_intake, completion_rate, total_days, total_litres = \
+        compute_history_stats(history)
 
     st.markdown("### 📊 History & Insights")
 
     stats1, stats2, stats3 = st.columns(3)
     stats1.metric("Active Days Logged", total_days)
-    stats2.metric("Current Streak (days)", streak_days)
+    stats2.metric("Current Streak (days)", streak)
     stats3.metric("Days Goal Met", f"{completion_rate:.1f} %")
 
     if best_date:
         st.caption(
             f"Best day: **{best_date}** with **{best_intake} ml**. "
-            f"Total water recorded: **{total_litres:.2f} L**"
+            f"Total water recorded: **{total_litres:.2f} L**."
         )
     else:
         st.caption("Start logging to unlock streaks and stats.")
@@ -513,9 +685,10 @@ def main():
         if not history:
             st.write("No history yet. Drink some water and it will be saved automatically.")
         else:
-            rows = []
-            for d, (t, g) in sorted(history.items()):
-                rows.append({"date": d, "intake_ml": t, "goal_ml": g})
+            rows = [
+                {"date": d, "intake_ml": t, "goal_ml": g}
+                for d, (t, g) in sorted(history.items())
+            ]
             df = pd.DataFrame(rows)
             df["date"] = pd.to_datetime(df["date"])
 
@@ -527,8 +700,8 @@ def main():
             st.dataframe(df.sort_values("date", ascending=False), use_container_width=True)
 
             st.caption(
-                f"History is stored locally in `{DATA_FILE}` and profile in `{PROFILE_FILE}` "
-                f"(simple text files, no login or cloud DB)."
+                f"History stored in `{DATA_FILE}` and XP profile in `{PROFILE_FILE}` "
+                f"(simple local text files, no cloud database)."
             )
 
 
