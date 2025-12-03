@@ -2,6 +2,7 @@ import streamlit as st
 import datetime
 import os
 import random
+import pandas as pd
 
 # ===================== CONFIG / CONSTANTS =====================
 
@@ -39,6 +40,8 @@ def init_state():
         st.session_state.dark_mode = False
     if "data_loaded" not in st.session_state:
         st.session_state.data_loaded = False
+    if "_ask_reset" not in st.session_state:
+        st.session_state._ask_reset = False
 
 
 def load_today_from_file():
@@ -101,7 +104,7 @@ def save_today_to_file():
 
 
 def load_history():
-    """Return dict: date -> (total, goal)."""
+    """Return dict: date_str -> (total, goal)."""
     history = {}
     if not os.path.exists(DATA_FILE):
         return history
@@ -196,7 +199,56 @@ def mascot_state(percent: float):
         return "🎉😄", "Mascot: Celebrating (goal reached!)"
 
 
-# ===================== DARK MODE (CSS HACK) =====================
+def compute_history_stats(history: dict):
+    """
+    history: {date_str: (intake, goal)}
+    Returns: streak_days, best_date, best_intake, completion_rate, total_days, total_litres
+    """
+    if not history:
+        return 0, None, 0, 0.0, 0, 0.0
+
+    # sort dates ascending
+    dates = sorted(history.keys())
+    total_days = len(dates)
+
+    # completion info
+    completed = 0
+    total_litres = 0.0
+    best_intake = 0
+    best_date = None
+
+    for d in dates:
+        intake, goal = history[d]
+        if intake >= goal:
+            completed += 1
+        if intake > best_intake:
+            best_intake = intake
+            best_date = d
+        total_litres += intake / 1000.0
+
+    completion_rate = completed / total_days * 100.0
+
+    # streak: consecutive days with goal met up to the most recent date
+    streak = 0
+    # Walk backwards from latest date
+    last_date = datetime.date.fromisoformat(dates[-1])
+    current = last_date
+    date_set = set(dates)
+
+    while True:
+        d_str = current.isoformat()
+        if d_str not in date_set:
+            break
+        intake, goal = history[d_str]
+        if intake < goal:
+            break
+        streak += 1
+        current = current - datetime.timedelta(days=1)
+
+    return streak, best_date, best_intake, completion_rate, total_days, total_litres
+
+
+# ===================== DARK MODE (CSS) =====================
 
 def apply_dark_mode():
     if st.session_state.dark_mode:
@@ -204,8 +256,12 @@ def apply_dark_mode():
             """
             <style>
             .stApp {
-                background-color: #111111;
-                color: #f5f5f5;
+                background-color: #0f172a;
+                color: #f9fafb;
+            }
+            .block-container {
+                padding-top: 2rem;
+                padding-bottom: 2rem;
             }
             </style>
             """,
@@ -216,8 +272,12 @@ def apply_dark_mode():
             """
             <style>
             .stApp {
-                background-color: #f5f5f5;
-                color: #000000;
+                background-color: #f3f4f6;
+                color: #020617;
+            }
+            .block-container {
+                padding-top: 2rem;
+                padding-bottom: 2rem;
             }
             </style>
             """,
@@ -228,7 +288,7 @@ def apply_dark_mode():
 # ===================== MAIN APP =====================
 
 def main():
-    st.set_page_config(page_title="WaterBuddy", page_icon="💧", layout="centered")
+    st.set_page_config(page_title="WaterBuddy", page_icon="💧", layout="wide")
     init_state()
 
     if not st.session_state.data_loaded:
@@ -237,45 +297,49 @@ def main():
 
     apply_dark_mode()
 
-    # ---------- SIDEBAR (GOAL SELECTION, TIP, RESET, DARK MODE) ----------
+    # ---------- SIDEBAR ----------
     with st.sidebar:
-        st.header("⚙️ Settings")
+        st.markdown("## ⚙️ Settings")
 
         # Feature 1: Goal Selection (Age group + manual)
-        st.subheader("Age Group")
-        new_age = st.selectbox("Select Age Group", list(AGE_GUIDELINES.keys()),
-                               index=list(AGE_GUIDELINES.keys()).index(st.session_state.age_group))
+        st.markdown("#### Age Group")
+        new_age = st.selectbox(
+            "Select Age Group",
+            list(AGE_GUIDELINES.keys()),
+            index=list(AGE_GUIDELINES.keys()).index(st.session_state.age_group),
+            label_visibility="collapsed"
+        )
         if new_age != st.session_state.age_group:
             st.session_state.age_group = new_age
             recalc_goal_from_age()
             save_today_to_file()
             st.experimental_rerun()
 
-        st.subheader("Daily Goal (ml)")
-        goal_col1, goal_col2 = st.columns([2, 1])
-        with goal_col1:
-            goal_input = st.text_input("Manual goal (ml)", value=str(st.session_state.goal_ml))
-        with goal_col2:
-            if st.button("Set Goal"):
-                set_manual_goal(goal_input)
+        st.markdown("#### Daily Goal (ml)")
+        goal_input = st.text_input(
+            "Manual goal (ml)",
+            value=str(st.session_state.goal_ml),
+            label_visibility="collapsed"
+        )
+        if st.button("Set Goal"):
+            set_manual_goal(goal_input)
 
         st.markdown("---")
 
         # Feature 5: Reset function (with confirmation)
         if st.button("🗓️ New Day / Reset"):
-            # Simple confirmation pattern in Streamlit
             st.session_state._ask_reset = True
 
-        if st.session_state.get("_ask_reset", False):
-            st.warning("Are you sure you want to reset today's progress?")
+        if st.session_state._ask_reset:
+            st.warning("Reset today's progress?")
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("✅ Yes, reset"):
+                if st.button("✅ Yes"):
                     reset_day()
                     st.session_state._ask_reset = False
                     st.experimental_rerun()
             with c2:
-                if st.button("❌ Cancel"):
+                if st.button("❌ No"):
                     st.session_state._ask_reset = False
                     st.experimental_rerun()
 
@@ -287,56 +351,123 @@ def main():
 
         # Dark mode toggle
         st.markdown("---")
-        st.session_state.dark_mode = st.checkbox("🌙 Dark Mode", value=st.session_state.dark_mode)
-        # Apply immediately
+        st.session_state.dark_mode = st.checkbox(
+            "🌙 Dark Mode", value=st.session_state.dark_mode
+        )
         apply_dark_mode()
 
     # ---------- MAIN LAYOUT ----------
-    st.title("💧 WaterBuddy – Daily Hydration Companion")
+    # Header
+    st.markdown(
+        """
+        <h1 style='margin-bottom:0'>💧 WaterBuddy</h1>
+        <p style='margin-top:4px;font-size:0.95rem;opacity:0.75'>
+        Daily hydration companion with goals, history & progress insights.
+        </p>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # Progress calculations
     goal, total, remaining, percent = compute_progress()
 
-    # Feature 3: Real-time feedback (labels + progress bar)
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Daily Goal", f"{goal} ml")
-    c2.metric("Total Drank", f"{total} ml")
-    c3.metric("Remaining", f"{remaining} ml")
+    # Top stats row
+    top1, top2, top3, top4 = st.columns(4)
+    top1.metric("Daily Goal", f"{goal} ml")
+    top2.metric("Drank Today", f"{total} ml")
+    top3.metric("Remaining", f"{remaining} ml")
+    top4.metric("Progress", f"{percent:.1f} %")
 
     st.progress(min(1.0, percent / 100.0))
 
-    emoji, mascot_text = mascot_state(percent)
-    st.markdown(f"### {emoji} {mascot_text}")
-    st.caption(motivational_message(percent))
+    # Mascot + message row
+    col_mascot, col_msg = st.columns([1, 2])
+    with col_mascot:
+        emoji, mascot_text = mascot_state(percent)
+        st.markdown(f"### {emoji}")
+        st.caption(mascot_text)
 
-    # Feature 2: Logging water (+250 and custom)
-    st.subheader("Log Water")
+    with col_msg:
+        st.markdown("##### Status")
+        st.info(motivational_message(percent))
 
-    log_col1, log_col2 = st.columns([1, 1])
+    st.markdown("---")
 
-    with log_col1:
-        if st.button("+250 ml"):
+    # ---------- LOGGING CONTROLS ----------
+    st.markdown("### Log Water")
+
+    c_fast, c_custom = st.columns([2, 1])
+
+    with c_fast:
+        st.markdown("**Quick add**")
+        b1, b2, b3, b4 = st.columns(4)
+        if b1.button("+100 ml"):
+            add_water(100)
+            st.experimental_rerun()
+        if b2.button("+250 ml"):
             add_water(250)
             st.experimental_rerun()
+        if b3.button("+500 ml"):
+            add_water(500)
+            st.experimental_rerun()
+        if b4.button("+1 L"):
+            add_water(1000)
+            st.experimental_rerun()
 
-    with log_col2:
-        custom_amt = st.number_input("Custom amount (ml)", min_value=1, step=50, value=100)
+    with c_custom:
+        st.markdown("**Custom amount**")
+        custom_amt = st.number_input(
+            "Amount (ml)", min_value=1, step=50, value=150, label_visibility="collapsed"
+        )
         if st.button("Add Custom"):
             add_water(int(custom_amt))
             st.experimental_rerun()
 
     st.markdown("---")
 
-    # Optional: history view
-    with st.expander("📅 View Hydration History"):
-        history = load_history()
+    # ---------- HISTORY & ANALYTICS ----------
+    history = load_history()
+    streak_days, best_date, best_intake, completion_rate, total_days, total_litres = (
+        compute_history_stats(history)
+    )
+
+    st.markdown("### 📊 History & Insights")
+
+    stats1, stats2, stats3 = st.columns(3)
+    stats1.metric("Active Days Logged", total_days)
+    stats2.metric("Current Streak (days)", streak_days)
+    stats3.metric("Days Goal Met", f"{completion_rate:.1f} %")
+
+    if best_date:
+        st.caption(
+            f"Best day: **{best_date}** with **{best_intake} ml**. "
+            f"Total water recorded: **{total_litres:.2f} L**"
+        )
+    else:
+        st.caption("Start logging to unlock streaks and stats.")
+
+    # Graph + table
+    with st.expander("📅 View Hydration History (Chart & Table)", expanded=False):
         if not history:
             st.write("No history yet. Drink some water and it will be saved automatically.")
         else:
-            for d, (t, g) in sorted(history.items(), reverse=True):
-                status = "✅ Goal Met" if t >= g else "⚠️ Goal Not Met"
-                st.write(f"**{d}** — {t} / {g} ml  {status}")
-        st.caption(f"History is stored locally in `{DATA_FILE}` (no cloud login / no external DB).")
+            # Build DataFrame
+            rows = []
+            for d, (t, g) in sorted(history.items()):
+                rows.append({"date": d, "intake_ml": t, "goal_ml": g})
+            df = pd.DataFrame(rows)
+            df["date"] = pd.to_datetime(df["date"])
+
+            st.markdown("#### Trend")
+            chart_df = df.set_index("date")[["intake_ml", "goal_ml"]]
+            st.line_chart(chart_df)
+
+            st.markdown("#### Raw data")
+            st.dataframe(df.sort_values("date", ascending=False), use_container_width=True)
+
+            st.caption(
+                f"History is stored locally in `{DATA_FILE}` (simple text file, no login or cloud DB)."
+            )
 
 
 if __name__ == "__main__":
