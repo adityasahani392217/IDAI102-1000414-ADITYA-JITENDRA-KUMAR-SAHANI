@@ -13,10 +13,9 @@
 
 Try the application live in your browser without installing anything:
 
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](YOUR_STREAMLIT_SHARE_LINK_HERE)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://idai102-1000414-aditya-jitendra-kumar-sahani-waterbuddy.streamlit.app/)
 
-> **Link:** Replace this with your actual Streamlit Cloud URL, for example:  
-> `https://waterbuddy.streamlit.app`
+> **Link:** https://idai102-1000414-aditya-jitendra-kumar-sahani-waterbuddy.streamlit.app/
 
 ---
 
