@@ -541,12 +541,20 @@ def apply_dark_mode():
             }
             
             /* FORCE TEXT COLORS TO WHITE */
-            h1, h2, h3, h4, h5, h6, p, li, span, div, label {
+            h1, h2, h3, h4, h5, h6, p, li, span, div, label, input {
                 color: #ffffff !important;
             }
             
             /* TARGET METRICS SPECIFICALLY FOR DARK MODE */
             [data-testid="stMetricLabel"], [data-testid="stMetricValue"] {
+                color: #ffffff !important;
+            }
+            
+            /* SIDEBAR DARK */
+            [data-testid="stSidebar"] {
+                background-color: #262730 !important;
+            }
+            [data-testid="stSidebar"] * {
                 color: #ffffff !important;
             }
             
@@ -575,20 +583,34 @@ def apply_dark_mode():
                 color: #000000;
             }
             
-            /* FORCE TEXT COLORS TO BLACK */
-            h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown {
+            /* GENERAL TEXT BLACK */
+            h1, h2, h3, h4, h5, h6, p, li, label, .stMarkdown, span, div {
                 color: #000000 !important;
             }
             
-            /* === THE FIX: FORCE METRIC CONTENT BLACK === */
-            /* This selector finds the metric container and forces everything inside to black */
+            /* === THE METRIC FIX === */
             [data-testid="stMetric"] * {
                 color: #000000 !important;
             }
 
-            /* FORCE INPUT TEXT BLACK */
-            .stTextInput input, .stNumberInput input {
+            /* === THE SIDEBAR FIX === */
+            [data-testid="stSidebar"] {
+                background-color: #f0f2f6 !important;
+            }
+            /* Force ALL sidebar text to black */
+            [data-testid="stSidebar"] * {
                 color: #000000 !important;
+            }
+
+            /* FORCE INPUTS (Text Input, Number Input, Selectbox) TO BLACK */
+            input, .stSelectbox, .stNumberInput {
+                color: #000000 !important;
+            }
+            
+            /* Fix invisible placeholder text in inputs */
+            ::placeholder {
+                color: #555555 !important;
+                opacity: 1;
             }
 
             /* KEEP BUTTON TEXT WHITE (Revert global black setting for buttons) */
