@@ -510,134 +510,139 @@ def draw_turtle_image(percent: float) -> Image.Image:
 
 # ===================== STYLING ENGINE =====================
 
+# ===================== STYLING ENGINE =====================
+
 def apply_styles():
     """
-    Applies the specific CSS to separate the Sidebar style from the Main App style.
+    Apply global styles using CSS Variable overrides on .stApp.
+    This fixes invisible text by updating the source variables Streamlit uses.
     """
-    # ------------------ DARK MODE (Everything Dark) ------------------
+    # ------------------ DARK MODE ------------------
     if st.session_state.dark_mode:
         st.markdown(
             """
             <style>
-            /* Main Background - Dark */
-            .stApp { background-color: #0E1117; }
-            
-            /* Text Color - White */
-            h1, h2, h3, h4, h5, h6, p, li, span, div, label, .stMarkdown {
-                color: #FAFAFA !important;
+            /* Force Dark Mode Variables on Main Container */
+            .stApp {
+                --primary-color: #4CAF50;
+                --background-color: #0E1117;
+                --secondary-background-color: #262730;
+                --text-color: #FAFAFA;
+                background-color: #0E1117;
+                color: #FAFAFA;
             }
             
-            /* Sidebar Background - Dark */
+            /* Sidebar Background */
             [data-testid="stSidebar"] {
-                background-color: #262730 !important;
-            }
-            /* Sidebar Text - White */
-            [data-testid="stSidebar"] * {
-                color: #FAFAFA !important;
+                background-color: #262730;
             }
             
-            /* Metrics - White */
+            /* Global Text Force */
+            h1, h2, h3, h4, h5, h6, p, li, span, div, label, .stMarkdown, 
             [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
                 color: #FAFAFA !important;
             }
             
-            /* Input Fields - Dark Theme */
-            .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
+            /* Inputs */
+            .stTextInput input, .stNumberInput input, .stSelectbox div, .stSelectbox span {
                 color: #FAFAFA !important;
                 background-color: #262730 !important;
             }
             
-            /* Buttons (Enabled) */
-            .stButton > button {
-                background-color: #4CAF50 !important;
-                color: white !important;
-                border: none;
-            }
-            
-            /* Disabled Buttons (Badges) */
+            /* Disabled Buttons */
             button:disabled {
                 background-color: #333 !important;
                 color: #888 !important;
+                border: 1px solid #444;
             }
             </style>
             """,
             unsafe_allow_html=True
         )
-        
+
     # ------------------ LIGHT MODE (Main Light + Sidebar Dark) ------------------
     else:
         st.markdown(
             """
             <style>
-            /* Main Background - White */
-            .stApp { background-color: #FFFFFF; }
-            
-            /* MAIN AREA TEXT - Black */
-            /* We use .main selector to target only content in the main area */
-            .main h1, .main h2, .main h3, .main h4, .main p, .main li, .main label, .main span, .main div {
-                color: #000000 !important;
+            /* Force Light Mode Variables on Main Container */
+            .stApp {
+                --primary-color: #2563EB;
+                --background-color: #FFFFFF;
+                --secondary-background-color: #F0F2F6;
+                --text-color: #000000; /* This fixes the invisible text */
+                background-color: #FFFFFF;
+                color: #000000;
             }
-            
-            /* --- SIDEBAR OVERRIDES (DARK SIDEBAR) --- */
+
+            /* --- SIDEBAR (Dark Theme) --- */
             [data-testid="stSidebar"] {
-                background-color: #262730 !important;
+                background-color: #1e293b !important;
+                --text-color: #FFFFFF; /* Override var just for sidebar */
             }
-            /* FORCE ALL SIDEBAR TEXT TO WHITE */
-            /* Using a broad selector for the sidebar specifically */
-            section[data-testid="stSidebar"] * {
+            
+            /* Force Sidebar Text White */
+            [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
+            [data-testid="stSidebar"] p, [data-testid="stSidebar"] label, [data-testid="stSidebar"] span,
+            [data-testid="stSidebar"] div, [data-testid="stSidebar"] .stMarkdown {
                 color: #FFFFFF !important;
             }
             
-            /* --- METRICS (Main Area) --- */
-            /* Explicitly set metric values to Black for visibility on white BG */
+            /* Sidebar Inputs (Dark) */
+            [data-testid="stSidebar"] input,
+            [data-testid="stSidebar"] .stNumberInput input,
+            [data-testid="stSidebar"] div[data-baseweb="select"] > div {
+                color: #FFFFFF !important;
+                background-color: #334155 !important;
+            }
+            /* Sidebar Dropdown SVG Icon */
+            [data-testid="stSidebar"] svg {
+                fill: #FFFFFF !important;
+            }
+
+            /* --- MAIN CONTENT (Light Theme) --- */
+            
+            /* Force specific text elements to Black */
+            .main h1, .main h2, .main h3, .main h4, .main p, .main li, .main label, .main span {
+                color: #000000 !important;
+            }
+
+            /* Fix Metrics - specifically targeting label and value */
+            [data-testid="stMetricLabel"] {
+                color: #444444 !important;
+            }
             [data-testid="stMetricValue"] div {
                 color: #000000 !important;
             }
-            [data-testid="stMetricLabel"] label {
-                color: #555555 !important;
-            }
             
-            /* --- INPUT FIELDS (Separated) --- */
-            
-            /* 1. Sidebar Inputs: Dark BG, White Text */
-            [data-testid="stSidebar"] input,
-            [data-testid="stSidebar"] div[data-baseweb="select"] > div {
-                color: #FFFFFF !important;
-                background-color: #444444 !important; /* Slightly lighter than sidebar bg */
-            }
-            
-            /* 2. Main Area Inputs: White BG, Black Text */
+            /* Main Area Inputs - Light */
             .main input, .main .stNumberInput input {
-                 color: #000000 !important;
-                 background-color: #FFFFFF !important;
-                 border: 1px solid #ccc;
+                background-color: #F0F2F6 !important;
+                color: #000000 !important;
+                border: 1px solid #ccc;
             }
-            /* Dropdowns in main area */
             .main div[data-baseweb="select"] > div {
                 background-color: #FFFFFF !important;
                 color: #000000 !important;
             }
 
-            /* --- BUTTONS --- */
-            /* Blue Buttons */
-            .stButton > button {
-                background-color: #2563EB !important;
-                color: white !important;
-            }
-            /* Ensure text inside button P tags is white */
-            .stButton > button p {
-                color: white !important;
-            }
-            
-            /* Disabled Buttons (Badges in Main Area) - Light Grey */
+            /* Badges (Disabled Buttons) - Fix Invisible Text */
             .main button:disabled {
                 background-color: #E0E0E0 !important;
-                color: #555555 !important;
-                border: 1px solid #CCCCCC;
+                color: #333333 !important; /* Dark Grey Text */
+                border: 1px solid #CCCCCC !important;
                 opacity: 1 !important;
             }
             .main button:disabled p {
-                color: #555555 !important;
+                color: #333333 !important;
+            }
+            
+            /* Enabled Buttons - White Text */
+            .stButton > button {
+                color: #FFFFFF !important;
+            }
+            .stButton > button p {
+                color: #FFFFFF !important;
             }
             </style>
             """,
