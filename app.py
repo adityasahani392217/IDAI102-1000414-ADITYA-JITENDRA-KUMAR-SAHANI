@@ -524,141 +524,174 @@ def draw_turtle_image(percent: float) -> Image.Image:
 
 # ===================== STYLING ENGINE =====================
 
-# ===================== STYLING ENGINE =====================
-
 def apply_styles():
-    """
-    Apply global styles using CSS Variables overrides to fix stubborn text colors.
-    """
-    # ------------------ DARK MODE ------------------
+    """Enhanced styling with proper metric and badge visibility"""
+    
     if st.session_state.dark_mode:
         st.markdown(
             """
             <style>
-            /* Redefine global variables for Dark Mode */
-            :root {
-                --primary-color: #4CAF50;
-                --background-color: #0E1117;
-                --secondary-background-color: #262730;
-                --text-color: #FAFAFA;
-                --font: sans-serif;
-            }
-            
-            /* Main Background */
+            /* Dark Mode Theme */
             .stApp {
-                background-color: #0E1117;
+                background: linear-gradient(135deg, #0a0e27 0%, #1a1d3a 100%);
                 color: #FAFAFA;
             }
             
-            /* Sidebar */
             [data-testid="stSidebar"] {
-                background-color: #262730;
+                background: linear-gradient(180deg, #1e2139 0%, #2a2d4a 100%);
             }
             
-            /* GLOBAL TEXT FORCE - WHITE */
-            h1, h2, h3, h4, h5, h6, p, li, span, div, label, .stMarkdown, .stMetricLabel, [data-testid="stMetricValue"] {
+            /* Force all text to white in dark mode */
+            h1, h2, h3, h4, h5, h6, p, li, span, div, label {
                 color: #FAFAFA !important;
             }
             
-            /* INPUTS */
-            .stTextInput input, .stNumberInput input, .stSelectbox div, .stSelectbox span {
-                color: #FAFAFA !important;
-                background-color: #262730 !important;
+            /* Metric styling - CRITICAL FIX */
+            [data-testid="stMetricLabel"] {
+                color: #B0B8D4 !important;
+                font-weight: 500 !important;
+            }
+            [data-testid="stMetricValue"] {
+                color: #FFFFFF !important;
+                font-size: 2rem !important;
+                font-weight: 700 !important;
             }
             
-            /* DISABLED BUTTONS (Badges) */
-            button:disabled {
-                background-color: #333 !important;
-                color: #888 !important;
-                border: 1px solid #444;
+            /* Inputs */
+            .stTextInput input, .stNumberInput input {
+                background-color: #2a2d4a !important;
+                color: #FAFAFA !important;
+                border: 1px solid #3d4163 !important;
+            }
+            
+            /* Buttons */
+            .stButton > button {
+                background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+                color: white !important;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+            }
+            .stButton > button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+            }
+            
+            /* Disabled buttons (badges) - CRITICAL FIX */
+            .stButton > button:disabled {
+                background: #2a2d4a !important;
+                color: #6B7280 !important;
+                opacity: 0.6 !important;
+                border: 1px solid #3d4163 !important;
+            }
+            
+            /* Progress bars */
+            .stProgress > div > div {
+                background: linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%);
+            }
+            
+            /* Info/Warning boxes */
+            .stAlert {
+                background-color: #2a2d4a !important;
+                border-left: 4px solid #4CAF50 !important;
+                color: #FAFAFA !important;
             }
             </style>
             """,
             unsafe_allow_html=True
         )
-
-    # ------------------ LIGHT MODE (With Dark Sidebar) ------------------
     else:
         st.markdown(
             """
             <style>
-            /* Redefine global variables for Light Mode */
-            :root {
-                --primary-color: #2563EB;
-                --background-color: #FFFFFF;
-                --secondary-background-color: #F0F2F6;
-                --text-color: #000000;
-                --font: sans-serif;
-            }
-            
-            /* Main Background */
+            /* Light Mode Theme */
             .stApp {
-                background-color: #FFFFFF;
-                color: #000000;
+                background: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
+                color: #1e293b;
             }
 
-            /* --- SIDEBAR (Dark BG, White Text) --- */
+            /* Dark Sidebar */
             [data-testid="stSidebar"] {
-                background-color: #1e1e1e !important;
+                background: linear-gradient(180deg, #1e293b 0%, #334155 100%) !important;
             }
-            /* Force all text inside Sidebar to White */
             [data-testid="stSidebar"] * {
                 color: #FFFFFF !important;
             }
-            /* Fix Sidebar Inputs (Dark BG, White Text) */
-            [data-testid="stSidebar"] input, 
-            [data-testid="stSidebar"] div[data-baseweb="select"] > div {
-                background-color: #333333 !important;
+            [data-testid="stSidebar"] input {
+                background-color: #334155 !important;
                 color: #FFFFFF !important;
-            }
-            /* Fix Sidebar Selectbox Icon */
-            [data-testid="stSidebar"] svg {
-                fill: #FFFFFF !important;
+                border: 1px solid #475569 !important;
             }
 
-            /* --- MAIN CONTENT (White BG, Black Text) --- */
-            
-            /* Force basic text elements to Black */
-            .main h1, .main h2, .main h3, .main h4, .main p, .main li, .main label, .main span {
-                color: #000000 !important;
+            /* Main content text */
+            .main h1, .main h2, .main h3, .main h4, .main p, .main li, .main label {
+                color: #1e293b !important;
             }
 
-            /* METRICS - The "Invisible" Text Fix */
-            /* We explicitly target the metric label and value containers */
+            /* Metric styling - CRITICAL FIX */
             [data-testid="stMetricLabel"] {
-                color: #444444 !important; /* Dark Grey for label */
+                color: #64748b !important;
+                font-weight: 600 !important;
+                font-size: 0.875rem !important;
             }
             [data-testid="stMetricValue"] {
-                color: #000000 !important; /* Pure Black for value */
+                color: #0f172a !important;
+                font-size: 2rem !important;
+                font-weight: 700 !important;
             }
             
-            /* INPUTS (Main Area) - White BG, Black Text */
+            /* Inputs */
             .main input, .main .stNumberInput input {
-                background-color: #F0F2F6 !important;
-                color: #000000 !important;
-            }
-            .main div[data-baseweb="select"] > div {
-                color: #000000 !important;
+                background-color: #ffffff !important;
+                color: #1e293b !important;
+                border: 2px solid #e2e8f0 !important;
+                border-radius: 8px !important;
             }
 
-            /* BADGES (Disabled Buttons) - Fix for invisible white text */
-            .main button:disabled {
-                background-color: #EFEFEF !important;
-                color: #333333 !important; /* Dark Grey Text */
-                border: 1px solid #CCCCCC !important;
-                opacity: 1 !important;
+            /* Buttons */
+            .stButton > button {
+                background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+                color: white !important;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 8px;
+                font-weight: 600;
+                transition: all 0.3s ease;
+                box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
             }
-            /* Ensure inner text of disabled buttons is also dark */
-            .main button:disabled p {
-                color: #333333 !important;
+            .stButton > button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+            }
+
+            /* Disabled buttons (badges) - CRITICAL FIX */
+            .stButton > button:disabled {
+                background: #e2e8f0 !important;
+                color: #475569 !important;
+                opacity: 1 !important;
+                border: 2px solid #cbd5e1 !important;
+                font-weight: 600 !important;
             }
             
-            /* ENABLED BUTTONS - Keep White Text */
-            .stButton > button {
-                color: #FFFFFF !important;
+            /* Progress bars */
+            .stProgress > div > div {
+                background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
             }
-            .stButton > button p {
-                color: #FFFFFF !important;
+            
+            /* Info boxes */
+            .stAlert {
+                background-color: #eff6ff !important;
+                border-left: 4px solid #2563eb !important;
+                color: #1e293b !important;
+            }
+            
+            /* Cards/Containers */
+            div[data-testid="stExpander"] {
+                background-color: white !important;
+                border: 1px solid #e2e8f0 !important;
+                border-radius: 12px !important;
             }
             </style>
             """,
@@ -672,10 +705,10 @@ def main():
     st.set_page_config(page_title="WaterBuddy", page_icon="💧", layout="wide")
     init_state()
     
-    # APPLY CSS IMMEDIATELY
+    # Apply styles immediately
     apply_styles()
 
-    # profile selector FIRST, so files use correct suffix
+    # Profile selector
     with st.sidebar:
         st.markdown("## 👤 Profile")
         profiles = ["Me", "Family 2", "Family 3"]
@@ -691,7 +724,7 @@ def main():
         load_profile()
         st.session_state.data_loaded = True
 
-    # ---------- SIDEBAR (rest of settings) ----------
+    # Sidebar settings
     with st.sidebar:
         st.markdown("## ⚙️ Settings")
 
@@ -725,7 +758,7 @@ def main():
         st.number_input("Preset 1", min_value=10, max_value=5000, key="quick1")
         st.number_input("Preset 2", min_value=10, max_value=5000, key="quick2")
         st.number_input("Preset 3", min_value=10, max_value=5000, key="quick3")
-        save_profile()  # keep them persisted
+        save_profile()
 
         st.markdown("---")
 
@@ -734,237 +767,4 @@ def main():
 
         if st.session_state._ask_reset:
             st.warning("Reset today's progress?")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✅ Yes"):
-                    reset_day()
-                    st.session_state._ask_reset = False
-                    st.rerun()
-            with c2:
-                if st.button("❌ No"):
-                    st.session_state._ask_reset = False
-                    st.rerun()
-
-        st.markdown("---")
-
-        if st.button("💡 Hydration Tip"):
-            st.info(random.choice(HYDRATION_TIPS))
-
-        st.markdown("---")
-        st.markdown("#### Reminder")
-        st.session_state.reminder_minutes = st.selectbox(
-            "Show warning if no water for:",
-            [0, 30, 60, 90],
-            index=[0, 30, 60, 90].index(st.session_state.reminder_minutes),
-            format_func=lambda m: "Off" if m == 0 else f"{m} minutes",
-        )
-
-        st.markdown("---")
-        
-        # TOGGLE FOR DARK MODE
-        st.session_state.dark_mode = st.checkbox(
-            "🌙 Dark Mode", value=st.session_state.dark_mode
-        )
-
-    # ---------- HEADER ----------
-    st.markdown(
-        """
-        <h1 style='margin-bottom:0'>💧 WaterBuddy</h1>
-        <p style='margin-top:4px;font-size:0.95rem;opacity:0.75'>
-        Daily hydration companion with goals, reminders, XP, shop and progress insights.
-        </p>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # reminder banner
-    if st.session_state.reminder_minutes > 0 and st.session_state.last_drink_iso:
-        try:
-            last_dt = datetime.datetime.fromisoformat(st.session_state.last_drink_iso)
-            diff_min = (datetime.datetime.now() - last_dt).total_seconds() / 60
-            if diff_min >= st.session_state.reminder_minutes and st.session_state.total_ml < st.session_state.goal_ml:
-                st.warning(f"You haven't logged water for about {int(diff_min)} minutes.")
-        except Exception:
-            pass
-
-    # progress + XP
-    goal, total, remaining, percent = compute_progress()
-    xp = st.session_state.xp
-    level = st.session_state.level
-    xp_prev = (level - 1) * XP_PER_LEVEL
-    xp_into_level = xp - xp_prev
-    xp_progress = xp_into_level / XP_PER_LEVEL if XP_PER_LEVEL else 0.0
-
-    top0, top1, top2, top3, top4 = st.columns(5)
-    top0.metric("Level", level)
-    top1.metric("Daily Goal", f"{goal} ml")
-    top2.metric("Drank Today", f"{total} ml")
-    top3.metric("Remaining", f"{remaining} ml")
-    top4.metric("Progress", f"{percent:.1f} %")
-
-    st.progress(min(1.0, percent / 100.0))
-
-    st.markdown("##### XP Progress")
-    st.progress(min(1.0, xp_progress))
-    st.caption(
-        f"XP: {xp} | Level {level} | {xp_into_level} / {XP_PER_LEVEL} XP to next level"
-    )
-
-    # mascot + status
-    col_mascot, col_msg = st.columns([1.2, 2])
-
-    with col_mascot:
-        img = draw_turtle_image(percent)
-        st.image(img, caption="Your Water Turtle", use_column_width=False)
-        st.caption(f"Pose: {mascot_state(percent)}")
-
-    with col_msg:
-        st.markdown("##### Status")
-        st.info(motivational_message(percent))
-
-    st.markdown("---")
-
-    # ---------- LOG WATER ----------
-    st.markdown("### Log Water")
-
-    c_fast, c_custom = st.columns([2, 1])
-
-    with c_fast:
-        st.markdown("**Quick add**")
-        labels = [
-            f"+{st.session_state.quick1} ml",
-            f"+{st.session_state.quick2} ml",
-            f"+{st.session_state.quick3} ml",
-            "+1 L",
-        ]
-        amounts = [
-            st.session_state.quick1,
-            st.session_state.quick2,
-            st.session_state.quick3,
-            1000,
-        ]
-        b1, b2, b3, b4 = st.columns(4)
-        for btn, label, amt in zip((b1, b2, b3, b4), labels, amounts):
-            if btn.button(label):
-                add_water(int(amt))
-                st.rerun()
-
-    with c_custom:
-        st.markdown("**Custom amount**")
-        custom_amt = st.number_input(
-            "Amount (ml)", min_value=1, step=50, value=150, label_visibility="collapsed"
-        )
-        if st.button("Add Custom"):
-            add_water(int(custom_amt))
-            st.rerun()
-
-    if st.session_state.last_xp_gain > 0:
-        st.caption(f"⭐ You earned +{st.session_state.last_xp_gain} XP for that drink!")
-
-    st.markdown("---")
-
-    # ---------- XP SHOP ----------
-    st.markdown("### 🛒 XP Shop – Style Your Turtle")
-
-    def shop_item(col, key, label, cost, description):
-        owned = st.session_state[key]
-        xp = st.session_state.xp
-        with col:
-            st.markdown(f"**{label}**")
-            st.caption(description)
-            if owned:
-                st.button("Owned", key=f"{key}_owned", disabled=True)
-            else:
-                if st.button(f"Buy ({cost} XP)", key=f"buy_{key}"):
-                    if xp >= cost:
-                        st.session_state.xp -= cost
-                        st.session_state[key] = True
-                        save_profile()
-                        st.success(f"Bought {label}!")
-                        st.rerun()
-                    else:
-                        st.error("Not enough XP")
-
-    s1, s2, s3, s4 = st.columns(4)
-    shop_item(s1, "has_bandana", "Bandana", 150, "Give your turtle a red bandana.")
-    shop_item(s2, "has_sunglasses", "Sunglasses", 200, "Cool shades for sunny days.")
-    shop_item(s3, "has_crown", "Crown", 400, "Royal turtle energy.")
-    shop_item(
-        s4,
-        "has_party_shell",
-        "Party Shell",
-        600,
-        "Colourful shell pattern for celebrations.",
-    )
-
-    st.markdown("---")
-
-    # ---------- HISTORY / ANALYTICS / BADGES ----------
-    history = load_history()
-    streak, best_date, best_intake, completion_rate, total_days, total_litres = \
-        compute_history_stats(history)
-    days7, total7, met7, avg7 = compute_weekly_summary(history)
-    badges = compute_badges(history, streak)
-
-    st.markdown("### 📊 History & Insights")
-
-    stats1, stats2, stats3 = st.columns(3)
-    stats1.metric("Active Days Logged", total_days)
-    stats2.metric("Current Streak (days)", streak)
-    stats3.metric("Days Goal Met", f"{completion_rate:.1f} %")
-
-    if best_date:
-        st.caption(
-            f"Best day: **{best_date}** with **{best_intake} ml**. "
-            f"Total water recorded: **{total_litres:.2f} L**."
-        )
-    else:
-        st.caption("Start logging to unlock streaks and stats.")
-
-    # Weekly summary card
-    st.markdown("#### Weekly Summary (last 7 days)")
-    if days7 == 0:
-        st.info("No data in the last 7 days.")
-    else:
-        st.info(
-            f"Logged on **{days7}** day(s). Total **{total7} ml**, "
-            f"average **{avg7:.0f} ml/day**, goal met on **{met7}** day(s)."
-        )
-
-    # Badges
-    st.markdown("#### 🏅 Badges")
-    bcols = st.columns(len(badges))
-    for col, (name, (unlocked, desc)) in zip(bcols, badges.items()):
-        with col:
-            if unlocked:
-                st.success(name)
-            else:
-                st.button(name, disabled=True)
-            st.caption(desc)
-
-    with st.expander("📅 View Hydration History (Chart & Table)", expanded=False):
-        if not history:
-            st.write("No history yet. Drink some water and it will be saved automatically.")
-        else:
-            rows = [
-                {"date": d, "intake_ml": t, "goal_ml": g}
-                for d, (t, g) in sorted(history.items())
-            ]
-            df = pd.DataFrame(rows)
-            df["date"] = pd.to_datetime(df["date"])
-
-            st.markdown("#### Trend")
-            chart_df = df.set_index("date")[["intake_ml", "goal_ml"]]
-            st.line_chart(chart_df)
-
-            st.markdown("#### Raw data")
-            st.dataframe(df.sort_values("date", ascending=False), use_container_width=True)
-
-            st.caption(
-                f"History stored in `{get_data_file()}` and profile in `{get_profile_file()}` "
-                f"(simple local text files, no cloud database)."
-            )
-
-
-if __name__ == "__main__":
-    main()
+            c1, c2 = st.columns(2
